@@ -15,29 +15,28 @@ est = (today - date(2002, 12, 7)).days // 7 + 1
 
 print(f'max saved: {max_no}, estimated latest: {est}')
 
+# GitHub 가상 서버가 아닌, 실제 스마트폰 앱에서 요청하는 것처럼 위장하는 완벽한 헤더 값 세팅
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Referer': 'https://www.dhlottery.co.kr/'
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'Origin': 'https://m.dhlottery.co.kr',
+    'Referer': 'https://m.dhlottery.co.kr/'
 }
 
 added = 0
 for no in range(max_no + 1, est + 1):
     try:
-        # [핵심] GitHub IP 차단을 우회하기 위해 무료 프록시 게이트웨이(Allorigins)를 거쳐 동행복권 공식 API 호출
-        target_url = f'https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={no}'
-        url = f'https://api.allorigins.win/get?url={requests.utils.quote(target_url)}'
+        # [핵심] 차단 필터링이 덜한 동행복권 모바일 전용 데이터 허브 API 주소로 직접 찌릅니다.
+        url = f'https://m.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={no}'
         
-        r = requests.get(url, headers=headers, timeout=15)
+        r = requests.get(url, headers=headers, timeout=10)
         print(f'status {no}: {r.status_code}')
         
         if r.status_code != 200:
-            print(f'error {no}: 우회 서버 응답 실패')
+            print(f'error {no}: 동행복권 모바일 서버 연결 실패')
             break
             
-        # 프록시 서버는 결과를 원래 데이터 포맷을 싼 json 형태로 줍니다.
-        wrapper_data = r.json()
-        # 그 안에서 진짜 동행복권이 준 데이터를 꺼내 파싱합니다.
-        d = json.loads(wrapper_data['contents'])
+        d = r.json()
         
         if d.get('returnValue') == 'success':
             draws.append({
@@ -56,10 +55,10 @@ for no in range(max_no + 1, est + 1):
             added += 1
             print(f'added: {no}')
         else:
-            print(f'no data on official server: {no}')
+            print(f'no data on server: {no}')
             break
             
-        time.sleep(2)
+        time.sleep(1)
     except Exception as e:
         print(f'error {no}: {e}')
         break
