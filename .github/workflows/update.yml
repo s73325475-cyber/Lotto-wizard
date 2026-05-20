@@ -46,6 +46,7 @@ jobs:
       run: |
         pip install requests
 
+          # 맨 아랫줄 run 부분을 이렇게 교체합니다. 
     - name: 수동 입력값 파이썬에 던져주며 실행
       run: |
-        echo -e "${{ github.event.inputs.draw_date }}\n${{ github.event.inputs.num1 }}\n${{ github.event.inputs.num2 }}\n${{ github.event.inputs.num3 }}\n${{ github.event.inputs.num4 }}\n${{ github.event.inputs.num5 }}\n${{ github.event.inputs.num6 }}\n${{ github.event.inputs.bonus }}" | python update_lotto.py
+        python update_lotto.py "${{ github.event.inputs.draw_date }}" ${{ github.event.inputs.num1 }} ${{ github.event.inputs.num2 }} ${{ github.event.inputs.num3 }} ${{ github.event.inputs.num4 }} ${{ github.event.inputs.num5 }} ${{ github.event.inputs.num6 }} ${{ github.event.inputs.bonus }}
