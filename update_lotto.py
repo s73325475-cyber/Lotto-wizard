@@ -2,9 +2,8 @@ import requests
 import json
 import time
 from datetime import date
-import re
-from bs4 import BeautifulSoup
 
+# 1. 기존 데이터 로드
 with open('lotto.json', 'r') as f:
     data = json.load(f)
 
@@ -16,67 +15,47 @@ est = (today - date(2002, 12, 7)).days // 7 + 1
 
 print(f'max saved: {max_no}, estimated latest: {est}')
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Referer': 'https://www.dhlottery.co.kr/'
-}
-
+# 차단 없는 공공/외부 오픈 API 주소 활용
 added = 0
 for no in range(max_no + 1, est + 1):
     try:
-        url = f'https://www.dhlottery.co.kr/gameResult.do?method=byWinNo&drwNo={no}'
-        r = requests.get(url, headers=headers, timeout=15)
+        # 동행복권 본사 서버가 아닌, 우회 가능한 로또 오픈 API 주소 사용
+        url = f'https://api.lotto.chal6.com/v1/lotto?drwNo={no}'
+        r = requests.get(url, timeout=15)
         print(f'status {no}: {r.status_code}')
         
         if r.status_code != 200:
-            print(f'error {no}: 페이지 로드 실패')
+            print(f'error {no}: 데이터를 가져오지 못했습니다.')
             break
             
-        soup = BeautifulSoup(r.text, 'html.parser')
-        meta_title = soup.find('meta', {'property': 'og:title'})
-        if not meta_title or f"{no}회" not in meta_title.get('content', ''):
-            print(f'no data {no}: {no}회차 결과 페이지를 찾을 수 없습니다.')
-            break
-            
-        num_balls = soup.select('.win_result .num.win span.ball_645')
-        bonus_ball = soup.select_one('.win_result .num.bonus span.ball_645')
-        date_match = soup.select_one('.win_result p.desc')
-        
-        if len(num_balls) == 6 and bonus_ball:
-            drwtNo = [int(ball.text) for ball in num_balls]
-            bnusNo = int(bonus_ball.text)
-            
-            date_str = today.isoformat()
-            if date_match:
-                raw_date = date_match.text
-                extracted = re.findall(r'\d+', raw_date)
-                if len(extracted) >= 3:
-                    date_str = f"{extracted[0]}-{extracted[1].zfill(2)}-{extracted[2].zfill(2)}"
-
+        d = r.json()
+        # API 제공 형식에 맞춰 성공 여부 체크
+        if d.get('returnValue') == 'success' or 'drwNo' in d:
             draws.append({
-                'drwNo': no,
-                'drwNoDate': date_str,
-                'drwtNo1': drwtNo[0],
-                'drwtNo2': drwtNo[1],
-                'drwtNo3': drwtNo[2],
-                'drwtNo4': drwtNo[3],
-                'drwtNo5': drwtNo[4],
-                'drwtNo6': drwtNo[5],
-                'bnusNo': bnusNo,
-                'firstPrzwnerCo': 0,
-                'firstWinamnt': 0
+                'drwNo': int(d['drwNo']),
+                'drwNoDate': d['drwNoDate'],
+                'drwtNo1': int(d['drwtNo1']),
+                'drwtNo2': int(d['drwtNo2']),
+                'drwtNo3': int(d['drwtNo3']),
+                'drwtNo4': int(d['drwtNo4']),
+                'drwtNo5': int(d['drwtNo5']),
+                'drwtNo6': int(d['drwtNo6']),
+                'bnusNo': int(d['bnusNo']),
+                'firstPrzwnerCo': d.get('firstPrzwnerCo', 0),
+                'firstWinamnt': d.get('firstWinamnt', 0)
             })
             added += 1
             print(f'added: {no}')
         else:
-            print(f'parse fail {no}')
+            print(f'no data: {no}')
             break
             
-        time.sleep(2)
+        time.sleep(1)
     except Exception as e:
         print(f'error {no}: {e}')
         break
 
+# 3. 데이터 정렬 및 저장
 draws.sort(key=lambda x: x['drwNo'])
 with open('lotto.json', 'w') as f:
     json.dump({
