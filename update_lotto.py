@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 
 # 🔗 파이어베이스 실시간 데이터베이스 URL
-FIREBASE_URL = "https://lotto-wizard-52ee4-default-rtdb.asia-southeast1.firebasedatabase.app/lotto.json"
+FIREBASE_URL = "https://lotto-wizard-52ee4-default-rtdb.asia-southeast1.firebasedatabase.app/.json"
 
 def load_lotto_data():
     try:
