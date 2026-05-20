@@ -30,6 +30,10 @@ on:
         description: '보너스 번호'
         required: true
 
+# 깃허브 액션 가상 컴퓨터가 내 저장소(lotto.json)에 파일을 다시 쓸 수 있도록 권한을 부여합니다.
+permissions:
+  contents: write
+
 jobs:
   update-db:
     runs-on: ubuntu-latest
@@ -46,7 +50,14 @@ jobs:
       run: |
         pip install requests
 
-          # 맨 아랫줄 run 부분을 이렇게 교체합니다. 
     - name: 수동 입력값 파이썬에 던져주며 실행
       run: |
         python update_lotto.py "${{ github.event.inputs.draw_date }}" ${{ github.event.inputs.num1 }} ${{ github.event.inputs.num2 }} ${{ github.event.inputs.num3 }} ${{ github.event.inputs.num4 }} ${{ github.event.inputs.num5 }} ${{ github.event.inputs.num6 }} ${{ github.event.inputs.bonus }}
+
+    - name: 업데이트된 lotto.json을 내 깃허브 저장소에 반영
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add lotto.json
+        # 변경된 사항이 있을 때만 안전하게 깃허브 저장소로 push(저장)합니다.
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🤖 수동 입력 데이터 깃허브 파일 동기화 (회차 추가)" && git push)
