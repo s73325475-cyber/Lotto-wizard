@@ -12,6 +12,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_TOKEN }}
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -22,6 +23,6 @@ jobs:
         run: |
           git config user.name "bot"
           git config user.email "bot@bot.com"
-          git pull --rebase origin main
+          git remote set-url origin https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/sungwoolee0705-creator/lotto-wizard.git
           git add lotto.json
-          git diff --staged --quiet || (git commit -m "update" && git push)
+          git diff --staged --quiet || (git commit -m "update" && git push origin main)
