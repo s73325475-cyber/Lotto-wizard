@@ -1,67 +1,72 @@
 import requests
 import json
-import time
-from datetime import date
+from datetime import datetime
 
-# 1. 기존 데이터 로드
-with open('lotto.json', 'r') as f:
-    data = json.load(f)
+# 🔗 파이어베이스 실시간 데이터베이스 URL
+FIREBASE_URL = "https://lotto-wizard-52ee4-default-rtdb.asia-southeast1.firebasedatabase.app/lotto.json"
 
-draws = data['draws']
-nos = set(d['drwNo'] for d in draws)
-max_no = max(nos) if nos else 0
-today = date.today()
-est = (today - date(2002, 12, 7)).days // 7 + 1
-
-print(f'max saved: {max_no}, estimated latest: {est}')
-
-added = 0
-for no in range(max_no + 1, est + 1):
+def load_lotto_data():
     try:
-        # [핵심] 차단이 전혀 없는 전용 로또 오픈 API 허브 주소 사용
-        url = f'https://api.b612.me/lotto?drwNo={no}'
-        r = requests.get(url, timeout=15)
-        print(f'status {no}: {r.status_code}')
-        
-        if r.status_code != 200:
-            print(f'error {no}: 오픈 API 서버 응답 실패')
-            break
-            
-        d = r.json()
-        
-        # API 응답 성공 여부 확인
-        if d.get('returnValue') == 'success' or 'drwNo' in d:
-            draws.append({
-                'drwNo': int(d['drwNo']),
-                'drwNoDate': d['drwNoDate'],
-                'drwtNo1': int(d['drwtNo1']),
-                'drwtNo2': int(d['drwtNo2']),
-                'drwtNo3': int(d['drwtNo3']),
-                'drwtNo4': int(d['drwtNo4']),
-                'drwtNo5': int(d['drwtNo5']),
-                'drwtNo6': int(d['drwtNo6']),
-                'bnusNo': int(d['bnusNo']),
-                'firstPrzwnerCo': int(d.get('firstPrzwnerCo', 0)),
-                'firstWinamnt': int(d.get('firstWinamnt', 0))
-            })
-            added += 1
-            print(f'added: {no}')
-        else:
-            print(f'no data: {no}')
-            break
-            
-        time.sleep(1)
+        response = requests.get(FIREBASE_URL)
+        if response.status_code == 200 and response.json():
+            return response.json()
     except Exception as e:
-        print(f'error {no}: {e}')
-        break
+        print(f"파이어베이스 데이터 로드 실패: {e}")
+    return {"lastUpdated": "", "totalDraws": 0, "draws": []}
 
-# 3. 데이터 정렬 및 저장
-draws.sort(key=lambda x: x['drwNo'])
-with open('lotto.json', 'w') as f:
-    json.dump({
-        'lastUpdated': today.isoformat(),
-        'totalDraws': len(draws),
-        'draws': draws
-    }, f, ensure_ascii=True, separators=(',', ':'))
+def save_lotto_data(data):
+    try:
+        data['draws'].sort(key=lambda x: x['drwNo'])
+        data['totalDraws'] = len(data['draws'])
+        data['lastUpdated'] = datetime.now().date().isoformat()
+        
+        response = requests.put(FIREBASE_URL, json=data)
+        if response.status_code == 200:
+            print("🚀 파이어베이스 서버에 데이터가 성공적으로 저장되었습니다!")
+            return True
+    except Exception as e:
+        print(f"파이어베이스 데이터 저장 실패: {e}")
+        return False
 
-print(f'done: added {added}, total {len(draws)}')
+if __name__ == "__main__":
+    # 1. 기존 파이어베이스 데이터 원격 로드
+    lotto_data = load_lotto_data()
+    draws_list = lotto_data.get('draws', [])
+    
+    # 2. 다음 입력할 회차 자동 계산 (1223 다음은 1224)
+    next_no = (draws_list[-1]['drwNo'] + 1) if draws_list else 1
+    print(f"\n현재 등록된 최신 회차: {next_no - 1}회")
+    print(f"--- {next_no}회 당첨번호 수동 입력 시작 ---")
+    
+    # 3. 터미널(콘솔)에서 직접 번호 받기
+    # ⚠️ 주의: 깃허브 액션 수동 실행 시 입력창 대용으로 쓰입니다.
+    try:
+        drwNoDate = input("추첨 날짜를 입력하세요 (예: 2026-05-23): ").strip()
+        n1 = int(input("번호 1: "))
+        n2 = int(input("번호 2: "))
+        n3 = int(input("번호 3: "))
+        n4 = int(input("번호 4: "))
+        n5 = int(input("번호 5: "))
+        n6 = int(input("번호 6: "))
+        bnus = int(input("보너스 번호: "))
+        
+        # 중복 검증
+        if any(x['drwNo'] == next_no for x in draws_list):
+            print("⚠️ 이미 파이어베이스에 존재하는 회차입니다!")
+        else:
+            new_draw = {
+                "drwNo": int(next_no),
+                "drwNoDate": drwNoDate,
+                "drwtNo1": n1, "drwtNo2": n2, "drwtNo3": n3,
+                "drwtNo4": n4, "drwtNo5": n5, "drwtNo6": n6,
+                "bnusNo": bnus,
+                "firstPrzwnerCo": 0, "firstWinamnt": 0
+            }
+            draws_list.append(new_draw)
+            lotto_data['draws'] = draws_list
+            
+            # 파이어베이스 전송
+            save_lotto_data(lotto_data)
+            
+    except Exception as e:
+        print(f"입력 오류 또는 강제 종료: {e}")
