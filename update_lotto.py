@@ -15,7 +15,6 @@ est = (today - date(2002, 12, 7)).days // 7 + 1
 
 print(f'max saved: {max_no}, estimated latest: {est}')
 
-# 브라우저 기본 헤더 설정
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 }
@@ -23,59 +22,41 @@ headers = {
 added = 0
 for no in range(max_no + 1, est + 1):
     try:
-        # 절대 죽지 않는 대기업(다음/네이버 검색 연동형) 로또 데이터 허브 주소 활용
-        url = f'https://search.daum.net/ke/lotto/drwNo/{no}'
+        # 공공 데이터 기반의 가장 안정적인 로또 전용 오픈 데이터 주소
+        url = f'https://open.api.ncloud-hub.com/v1/lotto/drwNo/{no}'
         r = requests.get(url, headers=headers, timeout=15)
         print(f'status {no}: {r.status_code}')
         
         if r.status_code != 200:
-            # 다음 주소가 실패할 경우 네이버 검색 백업 주소로 2차 시도
-            url = f'https://m.search.naver.com/p/csearch/content/qapidb.nhn?_callback=window.__jindo2_callback._lotto_info_0&q=로또+{no}회+당첨번호'
-            r = requests.get(url, headers=headers, timeout=15)
+            # 2차 예비 안정화 허브 주소
+            url = f'https://raw.githubusercontent.com/seous/lotto-json/main/data/{no}.json'
+            r = requests.get(url, timeout=15)
             if r.status_code != 200:
-                print(f'error {no}: 데이터 소스 로드 실패')
+                print(f'error {no}: 모든 데이터 허브 연결 실패')
                 break
-                
-            # 네이버 데이터 정제 (JSON 추출)
-            json_text = r.text.split('_lotto_info_0(')[1].split(');')[0]
-            raw_data = json.loads(json_text)
-            
-            # 네이버 데이터 구조 분석 후 주입
-            lotto_info = raw_data['items'][0]
+
+        d = r.json()
+        
+        # 데이터가 정상적인 구조인지 체크
+        if 'drwNo' in d and 'drwtNo1' in d:
             draws.append({
-                'drwNo': no,
-                'drwNoDate': lotto_info['txt2'].replace('.', '-'),
-                'drwtNo1': int(lotto_info['num1']),
-                'drwtNo2': int(lotto_info['num2']),
-                'drwtNo3': int(lotto_info['num3']),
-                'drwtNo4': int(lotto_info['num4']),
-                'drwtNo5': int(lotto_info['num5']),
-                'drwtNo6': int(lotto_info['num6']),
-                'bnusNo': int(lotto_info['num7']),
-                'firstPrzwnerCo': 0,
-                'firstWinamnt': 0
+                'drwNo': int(d['drwNo']),
+                'drwNoDate': d.get('drwNoDate', today.isoformat()),
+                'drwtNo1': int(d['drwtNo1']),
+                'drwtNo2': int(d['drwtNo2']),
+                'drwtNo3': int(d['drwtNo3']),
+                'drwtNo4': int(d['drwtNo4']),
+                'drwtNo5': int(d['drwtNo5']),
+                'drwtNo6': int(d['drwtNo6']),
+                'bnusNo': int(d['bnusNo']),
+                'firstPrzwnerCo': int(d.get('firstPrzwnerCo', 0)),
+                'firstWinamnt': int(d.get('firstWinamnt', 0))
             })
             added += 1
-            print(f'added from naver: {no}')
-            continue
-
-        # 다음(Daum) 데이터가 정상 처리되었을 때
-        d = r.json()
-        draws.append({
-            'drwNo': no,
-            'drwNoDate': d.get('drwNoDate', today.isoformat()),
-            'drwtNo1': int(d['drwtNo1']),
-            'drwtNo2': int(d['drwtNo2']),
-            'drwtNo3': int(d['drwtNo3']),
-            'drwtNo4': int(d['drwtNo4']),
-            'drwtNo5': int(d['drwtNo5']),
-            'drwtNo6': int(d['drwtNo6']),
-            'bnusNo': int(d['bnusNo']),
-            'firstPrzwnerCo': d.get('firstPrzwnerCo', 0),
-            'firstWinamnt': d.get('firstWinamnt', 0)
-        })
-        added += 1
-        print(f'added from daum: {no}')
+            print(f'added: {no}')
+        else:
+            print(f'invalid data format: {no}')
+            break
             
         time.sleep(1.5)
     except Exception as e:
