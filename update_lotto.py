@@ -15,30 +15,22 @@ est = (today - date(2002, 12, 7)).days // 7 + 1
 
 print(f'max saved: {max_no}, estimated latest: {est}')
 
-# GitHub 가상 서버가 아닌, 실제 스마트폰 앱에서 요청하는 것처럼 위장하는 완벽한 헤더 값 세팅
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
-    'Accept': 'application/json, text/plain, */*',
-    'Origin': 'https://m.dhlottery.co.kr',
-    'Referer': 'https://m.dhlottery.co.kr/'
-}
-
 added = 0
 for no in range(max_no + 1, est + 1):
     try:
-        # [핵심] 차단 필터링이 덜한 동행복권 모바일 전용 데이터 허브 API 주소로 직접 찌릅니다.
-        url = f'https://m.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={no}'
-        
-        r = requests.get(url, headers=headers, timeout=10)
+        # [핵심] 차단이 전혀 없는 전용 로또 오픈 API 허브 주소 사용
+        url = f'https://api.b612.me/lotto?drwNo={no}'
+        r = requests.get(url, timeout=15)
         print(f'status {no}: {r.status_code}')
         
         if r.status_code != 200:
-            print(f'error {no}: 동행복권 모바일 서버 연결 실패')
+            print(f'error {no}: 오픈 API 서버 응답 실패')
             break
             
         d = r.json()
         
-        if d.get('returnValue') == 'success':
+        # API 응답 성공 여부 확인
+        if d.get('returnValue') == 'success' or 'drwNo' in d:
             draws.append({
                 'drwNo': int(d['drwNo']),
                 'drwNoDate': d['drwNoDate'],
@@ -55,7 +47,7 @@ for no in range(max_no + 1, est + 1):
             added += 1
             print(f'added: {no}')
         else:
-            print(f'no data on server: {no}')
+            print(f'no data: {no}')
             break
             
         time.sleep(1)
