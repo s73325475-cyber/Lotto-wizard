@@ -2,6 +2,8 @@ import requests
 import json
 import time
 from datetime import date
+import re
+from bs4 import BeautifulSoup  # ◀ HTML 파싱을 위해 추가
 
 # 1. 기존 데이터 로드
 with open('lotto.json', 'r') as f:
@@ -15,53 +17,72 @@ est = (today - date(2002, 12, 7)).days // 7 + 1
 
 print(f'max saved: {max_no}, estimated latest: {est}')
 
-# 2. 브라우저처럼 완벽하게 위장하기 위한 세션 및 헤더 설정
-session = requests.Session()
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    'Referer': 'https://www.dhlottery.co.kr/common.do?method=main',
-    'Accept': 'application/json, text/javascript, */*; q=0.01',
-    'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
-    'X-Requested-With': 'XMLHttpRequest',
-    'Connection': 'keep-alive'
+    'Referer': 'https://www.dhlottery.co.kr/'
 }
-session.headers.update(headers)
 
 added = 0
-# 미래 회차까지 불필요하게 돌지 않도록 범위를 est + 1 정도로 조절
+# 이번에는 API가 아닌 메인 페이지 혹은 특정 페이지 조회를 시도합니다.
 for no in range(max_no + 1, est + 1):
     try:
-        url = f'https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={no}'
-        r = session.get(url, timeout=15)
+        # 공식 API가 블락당했으므로, 일반 조회 페이지 웹 크롤링으로 선회
+        url = f'https://www.dhlottery.co.kr/gameResult.do?method=byWinNo&drwNo={no}'
+        r = requests.get(url, headers=headers, timeout=15)
         print(f'status {no}: {r.status_code}')
         
-        # [핵심 안전장치] 만약 받아온 내용이 JSON이 아니라 HTML(글자)이면 예외 처리로 보냄
-        if not r.text.strip().startswith('{'):
-            print(f'error {no}: 응답이 JSON 형식이 아닙니다. 차단되었거나 페이지가 변경되었을 수 있습니다.')
+        if r.status_code != 200:
+            print(f'error {no}: 페이지 로드 실패')
             break
             
-        d = r.json()
-        if d.get('returnValue') == 'success':
+        soup = BeautifulSoup(r.text, 'html.parser')
+        
+        # 해당 회차 페이지가 제대로 존재하고 번호가 있는지 체크
+        # 동행복권 구조상 번호가 없으면 알림창이 뜨거나 다른 화면이 나옴
+        meta_title = soup.find('meta', {'property': 'og:title'})
+        if not meta_title or f"{no}회" not in meta_title.get('content', ''):
+            print(f'no data {no}: {no}회차 결과 페이지를 찾을 수 없습니다.')
+            break
+            
+        # 당첨번호 6개 추출
+        num_balls = soup.select('.win_result .num.win span')
+        # 보너스 번호 추출
+        bonus_ball = soup.select_one('.win_result .num.bonus span')
+        # 추첨일 추출 (예: "2026년 05월 16일 추첨")
+        date_match = soup.select_one('.win_result p.desc')
+        
+        if len(num_balls) == 6 and bonus_ball:
+            drwtNo = [int(ball.text) for ball in num_balls]
+            bnusNo = int(bonus_ball.text)
+            
+            # 날짜 정제 (YYYY-MM-DD 형태 만들기)
+            date_str = today.isoformat()
+            if date_match:
+                raw_date = date_match.text
+                extracted = re.findall(r'\d+', raw_date)
+                if len(extracted) >= 3:
+                    date_str = f"{extracted[0]}-{extracted[1].zfill(2)}-{extracted[2].zfill(2)}"
+
+            # 데이터 추가
             draws.append({
-                'drwNo': d['drwNo'],
-                'drwNoDate': d['drwNoDate'],
-                'drwtNo1': d['drwtNo1'],
-                'drwtNo2': d['drwtNo2'],
-                'drwtNo3': d['drwtNo3'],
-                'drwtNo4': d['drwtNo4'],
-                'drwtNo5': d['drwtNo5'],
-                'drwtNo6': d['drwtNo6'],
-                'bnusNo': d['bnusNo'],
-                'firstPrzwnerCo': d.get('firstPrzwnerCo', 0),
-                'firstWinamnt': d.get('firstWinamnt', 0)
+                'drwNo': no,
+                'drwNoDate': date_str,
+                'drwtNo1': drwtNo[0],
+                'drwtNo2': drwtNo[1],
+                'drwtNo3': drwtNo[2],
+                'drwtNo4': drwtNo[3],
+                'drwtNo5': drwtNo[4],
+                'drwtNo6': drwtNo[6-1],
+                'bnusNo': bnusNo,
+                'firstPrzwnerCo': 0, # 웹페이지 구조상 등수 정보는 별도 파싱이 필요하여 우선 0 처리
+                'firstWinamnt': 0
             })
             added += 1
             print(f'added: {no}')
         else:
-            print(f'no data: {no}')
+            print(f'parse fail {no}: 번호 영역을 찾지 못했습니다.')
             break
-        
-        # 연속 요청 시 차단 방지를 위해 조금 여유 있게 대기 (2초)
+            
         time.sleep(2)
         
     except Exception as e:
