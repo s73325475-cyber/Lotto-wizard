@@ -16,32 +16,33 @@ est = (today - date(2002, 12, 7)).days // 7 + 1
 print(f'max saved: {max_no}, estimated latest: {est}')
 
 headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Referer': 'https://www.dhlottery.co.kr/'
 }
 
 added = 0
 for no in range(max_no + 1, est + 1):
     try:
-        # 공공 데이터 기반의 가장 안정적인 로또 전용 오픈 데이터 주소
-        url = f'https://open.api.ncloud-hub.com/v1/lotto/drwNo/{no}'
+        # [핵심] GitHub IP 차단을 우회하기 위해 무료 프록시 게이트웨이(Allorigins)를 거쳐 동행복권 공식 API 호출
+        target_url = f'https://www.dhlottery.co.kr/common.do?method=getLottoNumber&drwNo={no}'
+        url = f'https://api.allorigins.win/get?url={requests.utils.quote(target_url)}'
+        
         r = requests.get(url, headers=headers, timeout=15)
         print(f'status {no}: {r.status_code}')
         
         if r.status_code != 200:
-            # 2차 예비 안정화 허브 주소
-            url = f'https://raw.githubusercontent.com/seous/lotto-json/main/data/{no}.json'
-            r = requests.get(url, timeout=15)
-            if r.status_code != 200:
-                print(f'error {no}: 모든 데이터 허브 연결 실패')
-                break
-
-        d = r.json()
+            print(f'error {no}: 우회 서버 응답 실패')
+            break
+            
+        # 프록시 서버는 결과를 원래 데이터 포맷을 싼 json 형태로 줍니다.
+        wrapper_data = r.json()
+        # 그 안에서 진짜 동행복권이 준 데이터를 꺼내 파싱합니다.
+        d = json.loads(wrapper_data['contents'])
         
-        # 데이터가 정상적인 구조인지 체크
-        if 'drwNo' in d and 'drwtNo1' in d:
+        if d.get('returnValue') == 'success':
             draws.append({
                 'drwNo': int(d['drwNo']),
-                'drwNoDate': d.get('drwNoDate', today.isoformat()),
+                'drwNoDate': d['drwNoDate'],
                 'drwtNo1': int(d['drwtNo1']),
                 'drwtNo2': int(d['drwtNo2']),
                 'drwtNo3': int(d['drwtNo3']),
@@ -55,10 +56,10 @@ for no in range(max_no + 1, est + 1):
             added += 1
             print(f'added: {no}')
         else:
-            print(f'invalid data format: {no}')
+            print(f'no data on official server: {no}')
             break
             
-        time.sleep(1.5)
+        time.sleep(2)
     except Exception as e:
         print(f'error {no}: {e}')
         break
