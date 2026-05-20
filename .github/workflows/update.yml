@@ -1,37 +1,51 @@
-name: lotto-update
+name: Manual Lotto DB Update
+
+# 토요일 밤에 내가 원할 때 직접 버튼을 눌러 실행하겠다는 규칙입니다.
 on:
-  schedule:
-    - cron: '35 11 * * 6'
   workflow_dispatch:
+    inputs:
+      draw_date:
+        description: '추첨 날짜 (예: 2026-05-23)'
+        required: true
+        default: '2026-05-23'
+      num1:
+        description: '번호 1'
+        required: true
+      num2:
+        description: '번호 2'
+        required: true
+      num3:
+        description: '번호 3'
+        required: true
+      num4:
+        description: '번호 4'
+        required: true
+      num5:
+        description: '번호 5'
+        required: true
+      num6:
+        description: '번호 6'
+        required: true
+      bonus:
+        description: '보너스 번호'
+        required: true
+
 jobs:
-  update:
+  update-db:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_TOKEN }}
-          fetch-depth: 0
-          
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          
-      - name: Install dependencies
-        run: pip install requests beautifulsoup4
-        
-      - name: run
-        run: python3 update_lotto.py
-        
-      - name: push
-        run: |
-          git config user.name "bot"
-          git config user.email "bot@bot.com"
-          git remote set-url origin https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/sungwoolee0705-creator/lotto-wizard.git
-          git add lotto.json
-          if ! git diff --staged --quiet; then
-            git commit -m "update"
-            git pull --rebase origin main
-            git push origin main
-          fi
+    - name: 코드 체크아웃
+      uses: actions/checkout@v3
+
+    - name: 파이썬 설치
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: 필요한 라이브러리 설치
+      run: |
+        pip install requests
+
+    - name: 수동 입력값 파이썬에 던져주며 실행
+      run: |
+        echo -e "${{ github.event.inputs.draw_date }}\n${{ github.event.inputs.num1 }}\n${{ github.event.inputs.num2 }}\n${{ github.event.inputs.num3 }}\n${{ github.event.inputs.num4 }}\n${{ github.event.inputs.num5 }}\n${{ github.event.inputs.num6 }}\n${{ github.event.inputs.bonus }}" | python update_lotto.py
